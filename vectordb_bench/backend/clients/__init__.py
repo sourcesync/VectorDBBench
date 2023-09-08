@@ -18,6 +18,7 @@ from .zilliz_cloud.zilliz_cloud import ZillizCloud
 from .pgvector.pgvector import PgVector
 from .redis.redis import Redis
 from .chroma.chroma import ChromaClient
+from .gsi_cloud.gsi_cloud import GSICloud
 
 class DB(Enum):
     """Database types
@@ -40,6 +41,7 @@ class DB(Enum):
     PgVector = "PgVector"
     Redis = "Redis"
     Chroma = "Chroma"
+    GSICloud = "GSICloud"
 
 
     @property
@@ -56,7 +58,8 @@ db2client = {
     DB.Pinecone: Pinecone,
     DB.PgVector: PgVector,
     DB.Redis: Redis,
-    DB.Chroma: ChromaClient
+    DB.Chroma: ChromaClient,
+    DB.GSICloud: GSICloud
 }
 
 for db in DB:

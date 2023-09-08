@@ -45,6 +45,7 @@ DB_TO_ICON = {
     DB.PgVector: "https://assets.zilliz.com/PG_Vector_d464f2ef5f.png",
     DB.Redis: "https://assets.zilliz.com/Redis_Cloud_74b8bfef39.png",
     DB.Chroma: "https://assets.zilliz.com/chroma_ceb3f06ed7.png", 
+    DB.GSICloud: "https://gsitechnology.com/wp-content/uploads/2023/07/GSIT-logo-WebsiteContent-2023.jpg"
 }
 
 # RedisCloud color: #0D6EFD
