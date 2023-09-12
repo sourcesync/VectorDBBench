@@ -19,6 +19,7 @@ from .pgvector.pgvector import PgVector
 from .redis.redis import Redis
 from .chroma.chroma import ChromaClient
 from .gsi_cloud.gsi_cloud import GSICloud
+from .weaviate_cloud_test.weaviate_cloud import WeaviateCloud
 
 class DB(Enum):
     """Database types
@@ -42,6 +43,7 @@ class DB(Enum):
     Redis = "Redis"
     Chroma = "Chroma"
     GSICloud = "GSICloud"
+    WeaviateCloudTest = "WeaviateCloud"
 
 
     @property
@@ -59,7 +61,8 @@ db2client = {
     DB.PgVector: PgVector,
     DB.Redis: Redis,
     DB.Chroma: ChromaClient,
-    DB.GSICloud: GSICloud
+    DB.GSICloud: GSICloud,
+    DB.WeaviateCloudTest: WeaviateCloud
 }
 
 for db in DB:
