@@ -24,6 +24,7 @@ class WeaviateCloud(VectorDB):
         **kwargs,
     ):
         """Initialize wrapper around the weaviate vector database."""
+        log.info("init WeaviateCloud")
         self.db_config = db_config
         self.case_config = db_case_config
         self.collection_name = collection_name

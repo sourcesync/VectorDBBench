@@ -8,6 +8,8 @@ log = logging.getLogger("vectordb_bench")
 
 
 def main():
+    print("debug")
+    log.info("debug")
     log.info(f"all configs: {config().display()}")
     run_streamlit()
 
