@@ -31,6 +31,8 @@ class ElasticCloud(VectorDB):
         self.id_col_name = id_col_name
         self.vector_col_name = vector_col_name
 
+        log.debug("in elastic config")
+
         from elasticsearch import Elasticsearch
 
         client = Elasticsearch(**self.db_config)

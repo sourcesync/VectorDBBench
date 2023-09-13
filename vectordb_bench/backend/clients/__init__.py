@@ -21,6 +21,8 @@ from .chroma.chroma import ChromaClient
 from .gsi_cloud.gsi_cloud import GSICloud
 from .weaviate_cloud_test.weaviate_cloud import WeaviateCloud
 
+print("init configs")
+
 class DB(Enum):
     """Database types
 

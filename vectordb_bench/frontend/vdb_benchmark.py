@@ -9,8 +9,20 @@ from vectordb_bench.frontend.components.get_results.saveAsImage import getResult
 from vectordb_bench.frontend.const.styles import *
 from vectordb_bench.interface import benchMarkRunner
 
+import logging
 
 def main():
+
+    print("main")
+    log = logging.getLogger(__name__)
+    #log = logging.getLogger("vectordb_bench")
+    log.debug("")
+    log.debug("")
+    log.debug("dbg main str")
+    log.info("info main str")
+    log.error("err main str")
+    log.warning("warn main str")
+
     # set page config
     initResultsPageConfig(st)
 

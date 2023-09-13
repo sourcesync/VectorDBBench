@@ -20,7 +20,7 @@ def run_streamlit():
         "run",
         f"{os.path.dirname(__file__)}/frontend/vdb_benchmark.py",
         "--logger.level",
-        "info",
+        "debug",
         "--theme.base",
         "light",
         "--theme.primaryColor",
@@ -29,6 +29,7 @@ def run_streamlit():
         "#F0F2F6",
     ]
     log.debug(f"cmd: {cmd}")
+    log.info(f"cmd: {cmd}")
     try:
         subprocess.run(cmd, check=True)
     except KeyboardInterrupt:

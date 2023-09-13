@@ -3,11 +3,19 @@ import weaviate
 
 from ..api import DBConfig, DBCaseConfig, MetricType
 
+import logging
+
+class MyClass:
+    pass
+
 
 class WeaviateConfig(DBConfig):
+    v: MyClass
     url: SecretStr
     api_key: SecretStr
 
+    class Config:
+            arbitrary_types_allowed = True
     def to_dict(self) -> dict:
         return {
             "url": self.url.get_secret_value(),
@@ -16,10 +24,26 @@ class WeaviateConfig(DBConfig):
 
 
 class WeaviateIndexConfig(BaseModel, DBCaseConfig):
+    v: MyClass
     metric_type: MetricType | None = None
     ef: int | None = -1
     efConstruction: int | None = None
     maxConnections: int | None = None
+    class Config:
+            arbitrary_types_allowed = True
+
+    log = logging.getLogger("__main__")
+    log.warning("")
+    log.warning("")
+    log.warning("")
+    log.warning("GET WEAVIATE INDEX CONFIG")
+    log.warning("")
+
+    log = logging.getLogger("vectordb_bench")
+    log.warning("")
+    log.warning("")
+    log.warning("")
+    log.warning("GET WEAVIATE INDEX CONFIG")
 
     def parse_metric(self) -> str:
         if self.metric_type == MetricType.L2:
