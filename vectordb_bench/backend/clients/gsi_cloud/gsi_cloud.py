@@ -4,10 +4,13 @@ import logging
 from typing import Iterable, Type
 from contextlib import contextmanager
 
-from weaviate.exceptions import WeaviateBaseError
+import swagger_client
+from swagger_client.models import *
+import numpy as np
+import time, os
 
 from ..api import VectorDB, DBConfig, DBCaseConfig, IndexType
-from .config import WeaviateConfig, WeaviateIndexConfig
+from .config import GSIConfig, GSIIndexConfig
 
 
 log = logging.getLogger(__name__)
@@ -23,6 +26,9 @@ class GSICloud(VectorDB):
         drop_old: bool = False,
         **kwargs,
     ):
+        
+        self.verbose = True
+        self.dataset_id = None
         """Initialize wrapper around the weaviate vector database."""
         self.db_config = db_config
         self.case_config = db_case_config
@@ -32,29 +38,31 @@ class GSICloud(VectorDB):
         self._vector_field = "vector"
         self._index_name = "vector_idx"
 
-        from weaviate import Client
-        client = Client(**db_config)
-        if drop_old:
-            try:
-                if client.schema.exists(self.collection_name):
-                    log.info(f"weaviate client drop_old collection: {self.collection_name}")
-                    client.schema.delete_class(self.collection_name)
-            except WeaviateBaseError as e:
-                log.warning(f"Failed to drop collection: {self.collection_name} error: {str(e)}")
-                raise e from None
-        self._create_collection(client)
-        client = None
+        config = swagger_client.Configuration()
+        config.verify_ssl = False
+
+        config.host = f"http://{db_config.host}:{db_config.port}/v1.0"
+        api_config = swagger_client.ApiClient(config)
+        api_config.default_headers["allocationToken"] = db_config.allocation_id    
+        self.allocation_id = db_config.allocation_id
+
+        self.datasets_apis = swagger_client.DatasetsApi(api_config)
+        self.search_apis = swagger_client.SearchApi(api_config)
+        self.utilities_apis = swagger_client.UtilitiesApi(api_config)
+
+        # self._create_collection(client)
 
     @classmethod
     def config_cls(cls) -> Type[DBConfig]:
-        return WeaviateConfig
+        return GSIConfig
 
     @classmethod
     def case_config_cls(cls, index_type: IndexType | None = None) -> Type[DBCaseConfig]:
-        return WeaviateIndexConfig
+        return GSIIndexConfig
 
     @contextmanager
     def init(self) -> None:
+        # TODO: wtf...
         """
         Examples:
             >>> with self.init():
@@ -101,25 +109,55 @@ class GSICloud(VectorDB):
         metadata: list[int],
         **kwargs,
     ) -> (int, Exception):
-        """Insert embeddings into Weaviate"""
-        assert self.client.schema.exists(self.collection_name)
-        insert_count = 0
-        try:
-            with self.client.batch as batch:
-                batch.batch_size = len(metadata)
-                batch.dynamic = True
-                res = []
-                for i in range(len(metadata)):
-                    res.append(batch.add_data_object(
-                        {self._scalar_field: metadata[i]},
-                        class_name=self.collection_name,
-                        vector=embeddings[i]
-                    ))
-                    insert_count += 1
-                return (len(res), None)
-        except WeaviateBaseError as e:
-            log.warning(f"Failed to insert data, error: {str(e)}")
-            return (insert_count, e)
+        
+        if self.verbose:
+            print("GSI Import Dataset: load vectors to npy file...")
+
+        dataset_file_path = self.db_config['dataset_file_path']
+        if os.path.exists(dataset_file_path):
+            os.remove(dataset_file_path)
+        tmp = np.array(embeddings)
+        np.save(dataset_file_path, tmp)
+
+        if self.verbose:
+            print("GSI Import Dataset: import dataset to FVS...")
+
+        # import dataset FVS
+        resp = self.datasets_apis.controllers_dataset_controller_create_dataset(
+            ImportDatasetRequest(records=dataset_file_path, search_type=self.db_config['search_type'],
+                                 train_ind=True, nbits=self.db_config['nbits']),
+            allocation_token=self.allocation_id
+        )
+        self.dataset_id = resp.dataset_id
+
+        # train status
+        resp = self.datasets_apis.controllers_dataset_controller_get_dataset_status(
+            self.dataset_id, self.allocation_id
+        )
+        train_status = resp.dataset_status
+        while train_status != "completed":
+            if self.verbose:
+                print(f"GSI Train Status: currently {train_status}, waiting for \"completed\"")
+            time.sleep(3)
+
+            train_status = self.datasets_apis.controllers_dataset_controller_get_dataset_status(
+                self.dataset_id, self.allocation_id
+            ).dataset_status
+        
+        # load dataset
+        resp = self.datasets_apis.controllers_dataset_controller_load_dataset(
+            LoadDatasetRequest(allocation_id=self.allocation_id, dataset_id=self.dataset_id),
+            allocation_token=self.allocation_id
+        )
+        if self.verbose:
+            print("GSI Load Dataset: response", resp)
+        
+        # focus dataset
+        resp = self.datasets_apis.controllers_dataset_controller_focus_dataset(
+            FocusDatasetRequest(allocation_id=self.allocation_id, dataset_id=self.dataset_id)
+        )
+        if self.verbose:
+            print("GSI Focus Dataset")
 
     def search_embedding(
         self,
@@ -131,22 +169,29 @@ class GSICloud(VectorDB):
         """Perform a search on a query embedding and return results with distance.
         Should call self.init() first.
         """
-        assert self.client.schema.exists(self.collection_name)
 
-        query_obj = self.client.query.get(self.collection_name, [self._scalar_field]).with_additional("distance").with_near_vector({"vector": query}).with_limit(k)
-        if filters:
-            where_filter = {
-                "path": "key",
-                "operator": "GreaterThanEqual",
-                "valueInt": filters.get('id')
-            }
-            query_obj = query_obj.with_where(where_filter)
+        if self.verbose:
+            print("GSI Search: importing query vector(s) to npy file")
+        queries_file_path = self.db_config['query_file_path']
+        if os.path.exists(queries_file_path):
+            os.remove(queries_file_path)
+        tmp = np.reshape(np.array(query), (1, len(query)))
+        np.save(queries_file_path, tmp)
 
-        # Perform the search.
-        res = query_obj.do()
+        if self.verbose:
+            print("GSI Search: import queries")
+        self.utilities_apis.controllers_utilities_controller_import_queries(
+            ImportQueriesRequest(queries_file_path=queries_file_path),
+            allocation_token=self.allocation_id
+        )
 
-        # Organize results.
-        ret = [result[self._scalar_field] for result in res["data"]["Get"][self.collection_name]]
+        if self.verbose:
+            print("GSI Search: time for search hells yeah, k =", k)
+        resp = self.search_apis.controllers_search_controller_search(
+            SearchRequest(allocation_id=self.allocation_id, dataset_id=self.dataset_id, 
+                          queries_file_path=queries_file_path, topk=k),
+            allocation_token=self.allocation_id
+        )
 
-        return ret
+        return resp.indices
 
